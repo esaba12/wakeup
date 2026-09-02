@@ -1,0 +1,10 @@
+# Default sunrise ramp. See docs/03-sunrise-engine.md for the phase table
+# this implements (Ember / Dawn / Rise / Day).
+name: sunrise-classic
+brightness: cie
+keyframes:
+  - { t: 0.00, cct: 1600, rgb: [255, 60, 0] }
+  - { t: 0.15, cct: 1800 }
+  - { t: 0.50, cct: 2400 }
+  - { t: 0.85, cct: 3500 }
+  - { t: 1.00, cct: 4500 }

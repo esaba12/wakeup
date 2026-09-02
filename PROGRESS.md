@@ -20,13 +20,13 @@ If a task goes badly: `git reset --hard HEAD`, then re-run with a note about wha
 
 ## Status
 
-**Task 01 done.** Next up: **task 02 — light interface**.
+**Task 02 done.** Next up: **task 03 — sunrise engine**.
 
 | # | Task | Hardware needed | Status |
 |---|---|---|---|
 | 01 | Project scaffold, tooling, CI | none | done |
-| 02 | Light interface, curves, MockLight | none | ⬅ next |
-| 03 | Sunrise engine + tests | none | not started |
+| 02 | Light interface, curves, MockLight | none | done |
+| 03 | Sunrise engine + tests | none | ⬅ next |
 | 04 | Scheduler (alarms, DST) | none | not started |
 | 05 | Routine engine | none | not started |
 | 06 | Audio playback | laptop speakers | not started |
@@ -39,7 +39,9 @@ If a task goes badly: `git reset --hard HEAD`, then re-run with a note about wha
 
 Append anything a future session needs that isn't obvious from the code or specs (deviations from a task file, spec ambiguities resolved, hardware quirks hit during testing).
 
-- (none yet)
+- **Task 02:** `core/curves.py` deliberately does *not* implement `curve.color_at(t, b)` from spec 03's `run_ramp` pseudocode. The spec's `sunrise-classic.yaml` example has an isolated `rgb` keyframe at t=0 with no defined blend behavior into the surrounding CCT keyframes over a step interval — that's a real design decision, not a config-loading detail, so it's left for task 03 (`core/sunrise.py`) to make deliberately rather than guessed here. `Curve` currently exposes `.brightness(t)` and `.cct_at(t)` only; task 03 will need to add the brightness/CCT/RGB composition into a `LightState`.
+- **Task 02:** Added `types-PyYAML` to the `dev` extras (needed for `mypy --strict` on `core/curves.py`; user approved).
+- **Task 02:** `reverse-sunrise.yaml` is authored as a normal forward curve (t=0 → 1800K, t=1 → 2700K) on the assumption that task 03's engine applies spec 03's stated `t → 1-t` inversion when running a wind-down, per "Reverse ramp: the same engine with t → 1-t and different keyframes." If task 03 goes a different route, this file's keyframes will need to flip.
 
 ## When to buy hardware
 

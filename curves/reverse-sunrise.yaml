@@ -1,0 +1,9 @@
+# Wind-down ramp. Per docs/03-sunrise-engine.md: "the same engine with
+# t -> 1-t and different keyframes" — the engine inverts t, so this curve's
+# t=1 end (this file's warmest/brightest point) is where a wind-down starts,
+# and its t=0 end (dimmest) is where it ends, at a night-light level.
+name: reverse-sunrise
+brightness: cie
+keyframes:
+  - { t: 0.00, cct: 1800 }
+  - { t: 1.00, cct: 2700 }

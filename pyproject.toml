@@ -23,6 +23,7 @@ dev = [
     "pytest-asyncio",
     "ruff",
     "mypy",
+    "types-PyYAML",
 ]
 
 [project.scripts]
