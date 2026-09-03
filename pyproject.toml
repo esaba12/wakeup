@@ -24,6 +24,11 @@ dev = [
     "ruff",
     "mypy",
     "types-PyYAML",
+    # starlette.testclient (used by FastAPI's TestClient, task 07's
+    # REST/WebSocket test harness) requires this to drive the ASGI app
+    # in-process. Dev-only — never imported by the daemon itself, so it
+    # doesn't touch the arm64-wheel constraint on the runtime dependencies.
+    "httpx2",
 ]
 
 [project.scripts]
@@ -43,6 +48,13 @@ src = ["src", "tests"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
+
+[tool.ruff.lint.per-file-ignores]
+# FastAPI's dependency injection idiom is `param: T = Depends(...)` in the
+# signature itself — the call-in-default bugbear rule (B008) exists to catch
+# accidental shared mutable defaults, which this isn't; FastAPI calls
+# `Depends()` fresh per request. This is the documented, required pattern.
+"src/openrestore/api/*.py" = ["B008"]
 
 [tool.mypy]
 python_version = "3.11"

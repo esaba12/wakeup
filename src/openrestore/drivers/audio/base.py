@@ -36,6 +36,44 @@ class AudioDeviceInfo:
     description: str
 
 
+@dataclass(frozen=True, slots=True)
+class AudioOutputState:
+    """The currently-applied output state, mirroring what `Light.get()`
+    already does for the light driver (task 07: the API layer's state
+    object needs this to report `audio.playing`/`audio.gain_db`, and
+    without a getter that state is unreconstructable from the Protocol)."""
+
+    playing: AudioSource | None
+    gain_db: float
+
+
+def format_audio_source(source: AudioSource | None) -> str | None:
+    """Inverse of `parse_audio_source`: `AudioSource(kind='file', ref='rain.flac')`
+    -> `'file:rain.flac'`, matching docs/07-api-and-state.md's
+    `"playing": "file:rain.flac"`. `None` (nothing playing) -> `None`."""
+    if source is None:
+        return None
+    return f"{source.kind}:{source.ref}"
+
+
+def parse_audio_source(raw: str) -> AudioSource:
+    """Parse the `'file:...'` / `'url:...'` / `'stream:...'` convention used
+    by routine YAML (docs/06-routine-engine.md) and the REST `audio.play`
+    action (docs/07-api-and-state.md) alike — one parser for both callers."""
+    kind, sep, ref = raw.partition(":")
+    if sep != ":" or not ref:
+        raise ValueError(
+            f"invalid audio source {raw!r}; expected 'file:...', 'url:...' or 'stream:...'"
+        )
+    if kind == "file":
+        return AudioSource(kind="file", ref=ref)
+    if kind == "url":
+        return AudioSource(kind="url", ref=ref)
+    if kind == "stream":
+        return AudioSource(kind="stream", ref=ref)
+    raise ValueError(f"invalid audio source {raw!r}; expected 'file:', 'url:' or 'stream:'")
+
+
 def gain_at(t: float, start_db: float, end_db: float) -> float:
     """Linear interpolation in dB space, per docs/04-audio-subsystem.md
     "Volume behavior": `t` in [0, 1]. Perceived loudness is roughly
@@ -80,6 +118,12 @@ class AudioOutput(Protocol):
         "Volume behavior") — callers invoke it once and move on, the same way
         `Light.apply()`'s `transition_ms` is a fire-and-forget instruction to
         the driver."""
+        ...
+
+    async def get(self) -> AudioOutputState:
+        """Current output state, mirroring `Light.get()`. Task 07 needs this
+        to report `audio.playing`/`audio.gain_db` in the API state object
+        without adding vendor concepts above this layer."""
         ...
 
     async def is_available(self) -> bool:

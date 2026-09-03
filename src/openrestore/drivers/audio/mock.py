@@ -7,7 +7,7 @@ from datetime import datetime
 
 from openrestore.core.clock import Clock
 from openrestore.core.errors import DeviceUnreachable
-from openrestore.drivers.audio.base import AudioSource, clamp_gain_db
+from openrestore.drivers.audio.base import AudioOutputState, AudioSource, clamp_gain_db
 
 
 @dataclass(frozen=True, slots=True)
@@ -63,6 +63,9 @@ class MockAudioOutput:
         applied = clamp_gain_db(to_db, self.max_gain_db)
         self._gain_db = applied
         self.history.append(Call(self._clock.now(), "ramp_gain", (applied, over_s)))
+
+    async def get(self) -> AudioOutputState:
+        return AudioOutputState(playing=self._playing, gain_db=self._gain_db)
 
     async def is_available(self) -> bool:
         return self._available

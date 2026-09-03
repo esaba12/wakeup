@@ -212,7 +212,11 @@ class Scheduler:
     def subscribe(self, handler: Handler) -> None:
         self._event_bus.subscribe(handler)
 
-    async def start(self) -> None:
+    async def load(self) -> None:
+        """Hydrate in-memory alarm/occurrence state from `Store`. Split out
+        of `start()` (task 07) so a caller that drives ticks manually —
+        the API layer's test harness, under a `FakeClock` that never really
+        sleeps — can hydrate without also spawning the background loop."""
         alarm_rows = await self._store.list_alarms()
         self._alarms = {row.id: _row_to_alarm(row) for row in alarm_rows}
         occurrence_rows = await self._store.list_occurrences()
@@ -222,6 +226,9 @@ class Scheduler:
             for o in occurrence_rows
             if o.alarm_id in self._alarms and not self._alarms[o.alarm_id].days
         }
+
+    async def start(self) -> None:
+        await self.load()
         self._running = True
         # Run one tick synchronously before returning: this is what resolves
         # startup catch-up (fire or mark-missed) deterministically, rather
@@ -343,9 +350,12 @@ class Scheduler:
             )
 
     async def _emit(self, event_type: EventType, payload: dict[str, Any]) -> None:
-        event = Event(type=event_type, payload=payload)
-        await self._store.log_event(event, self._clock.now())
-        await self._event_bus.publish(event)
+        # Event-log persistence is centralized in the API layer's bus
+        # subscriber (task 07, src/openrestore/app.py) so every event type —
+        # this scheduler's and the routine engine's alike — is written to
+        # the `events` table exactly once, from one place, instead of each
+        # producer logging itself.
+        await self._event_bus.publish(Event(type=event_type, payload=payload))
 
     async def next_events(self, limit: int = 5) -> list[ScheduledEvent]:
         now = self._clock.now()
@@ -384,6 +394,15 @@ class Scheduler:
                 continue
             return day, resolve_local_time(day, alarm.time, tz)
         return None
+
+    def list_alarms(self) -> list[Alarm]:
+        """The in-memory alarms this scheduler currently knows about — the
+        same objects `tick()` reasons about, not a fresh read from `Store`
+        (task 07: the API layer's `GET /api/alarms`)."""
+        return list(self._alarms.values())
+
+    def get_alarm(self, alarm_id: str) -> Alarm | None:
+        return self._alarms.get(alarm_id)
 
     async def upsert(self, alarm: Alarm) -> Alarm:
         await self._store.upsert_alarm(_alarm_to_row(alarm))

@@ -28,6 +28,7 @@ from openrestore.core.clock import Clock
 from openrestore.core.errors import DeviceUnreachable
 from openrestore.drivers.audio.base import (
     AudioDeviceInfo,
+    AudioOutputState,
     AudioSource,
     clamp_gain_db,
     db_to_linear,
@@ -369,6 +370,9 @@ class MpvOutput:
             raise
         except DeviceUnreachable:
             logger.warning("audio.stop_failed", id=self.id)
+
+    async def get(self) -> AudioOutputState:
+        return AudioOutputState(playing=self._playing, gain_db=self._gain_db)
 
     async def is_available(self) -> bool:
         """Actually round-trips through the live mpv IPC connection (not

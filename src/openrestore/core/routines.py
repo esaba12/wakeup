@@ -59,7 +59,7 @@ from openrestore.core.curves import Curve, load_curve
 from openrestore.core.errors import ConfigError, RoutineError
 from openrestore.core.events import Event, EventBus, EventType
 from openrestore.core.sunrise import color_at, off_state
-from openrestore.drivers.audio.base import AudioOutput, AudioSource
+from openrestore.drivers.audio.base import AudioOutput, AudioSource, parse_audio_source
 from openrestore.drivers.light.base import Light, LightState
 
 # --- duration parsing --------------------------------------------------
@@ -336,17 +336,27 @@ def _validate_routine_yaml_shape(text: str, path: Path) -> None:
         _check_device_block_holder(snooze_node, path, _SNOOZE_KEYS)
 
 
-def load_routine(path: str | Path) -> Routine:
-    """Load and validate a routine YAML file. An unknown key at any nesting
-    level is a hard `ConfigError` naming the offending file and line."""
-    path = Path(path)
-    text = path.read_text()
+def parse_routine_text(text: str, source: str | Path) -> Routine:
+    """Validate and parse routine YAML/JSON already in memory — the shared
+    core of `load_routine` (a file on disk) and the task 07 REST upload
+    endpoint (`PUT /api/routines/{id}`, a request body). `source` is only
+    used to name the offending file/upload in error messages; JSON is valid
+    YAML 1.1, so no separate JSON code path is needed."""
+    path = Path(source)
     _validate_routine_yaml_shape(text, path)
     data = yaml.safe_load(text)
     try:
         return Routine.model_validate(data)
     except ValidationError as exc:
         raise ConfigError(f"{path}: {exc}") from exc
+
+
+def load_routine(path: str | Path) -> Routine:
+    """Load and validate a routine YAML file. An unknown key at any nesting
+    level is a hard `ConfigError` naming the offending file and line."""
+    path = Path(path)
+    text = path.read_text()
+    return parse_routine_text(text, path)
 
 
 def export_schema() -> dict[str, Any]:
@@ -464,18 +474,14 @@ _ESCALATION_STEP_DB = 6.0
 
 
 def _parse_audio_source(raw: str) -> AudioSource:
-    kind, sep, ref = raw.partition(":")
-    if sep != ":" or not ref:
-        raise RoutineError(
-            f"invalid audio source {raw!r}; expected 'file:...', 'url:...' or 'stream:...'"
-        )
-    if kind == "file":
-        return AudioSource(kind="file", ref=ref)
-    if kind == "url":
-        return AudioSource(kind="url", ref=ref)
-    if kind == "stream":
-        return AudioSource(kind="stream", ref=ref)
-    raise RoutineError(f"invalid audio source {raw!r}; expected 'file:', 'url:' or 'stream:'")
+    """Thin wrapper over the shared `drivers.audio.base.parse_audio_source`
+    (task 07 factored it out so the REST `audio.play` action parses sources
+    the same way) that re-raises as `RoutineError` — a routine's own domain
+    exception — rather than the driver layer's plain `ValueError`."""
+    try:
+        return parse_audio_source(raw)
+    except ValueError as exc:
+        raise RoutineError(str(exc)) from exc
 
 
 class RoutineEngine:
