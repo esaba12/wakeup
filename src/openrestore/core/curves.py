@@ -1,13 +1,12 @@
 """Sunrise brightness/CCT curve definitions and interpolation. Pure functions:
 no I/O beyond `load_curve`, no clock. See docs/03-sunrise-engine.md.
 
-Scope note: this module owns the brightness models and CCT keyframe
-interpolation described in tasks/02-light-interface.md. Combining a curve's
-brightness and CCT/RGB into a `LightState` for a running ramp (spec 03's
-`curve.color_at(t, b)`) is left to core/sunrise.py (task 03) — the spec does
-not define how an isolated `rgb` keyframe (e.g. the t=0 ember amber) should
-blend with the surrounding CCT keyframes over a step interval, and guessing
-that semantics here risks a design task 03 would just redo.
+Scope note: this module owns the brightness models and CCT/RGB keyframe
+interpolation. Combining a curve's brightness with its CCT/RGB into a
+`LightState` for a running ramp (spec 03's `curve.color_at(t, b)`) is a
+light-capability-aware decision — whether the curve's target CCT is even
+reachable by a given `Light` — so it lives in core/sunrise.py (task 03)
+alongside the engine that has a `Light` to ask.
 """
 
 from __future__ import annotations
@@ -101,6 +100,21 @@ class Curve:
                 fraction = (t - lo.t) / span if span > 0 else 0.0
                 return round(lo.cct + (hi.cct - lo.cct) * fraction)
         raise AssertionError("unreachable: t is within [first.t, last.t]")
+
+    def rgb_at(self, t: float) -> tuple[int, int, int] | None:
+        """The most recent `rgb` a keyframe at or before `t` defined, held
+        forward until a later keyframe redefines it — used as a low-CCT
+        fallback (see core/sunrise.py's `color_at`) for lights that can't
+        reach the curve's target color temperature. `None` if no keyframe at
+        or before `t` defines `rgb`."""
+        t = _clamp01(t)
+        result: tuple[int, int, int] | None = None
+        for keyframe in self.keyframes:
+            if keyframe.t > t:
+                break
+            if keyframe.rgb is not None:
+                result = keyframe.rgb
+        return result
 
 
 def _node_line(node: yaml.Node) -> int:

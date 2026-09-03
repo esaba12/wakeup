@@ -64,6 +64,15 @@ async def run_ramp(light, curve, start: datetime, end: datetime, target_brightne
     await light.apply(curve.color_at(1.0, target_brightness), transition_ms=1000)
 ```
 
+The final line above is written for the forward case, where it happens to be
+equivalent to the loop's own formula at `t=1.0` (every brightness model in
+this spec hits its ceiling there, so `curve.brightness(1.0) * target_brightness
+== target_brightness`). For the reverse ramp below, reusing this literal line
+is wrong: it would jump the wind-down back up to its *starting* brightness
+instead of ending near the floor. Implementations should compute the final
+apply from the same clamp formula the loop uses, evaluated at the ramp's
+final `t` (`1.0` forward, `0.0` reverse), not hard-code `target_brightness`.
+
 Non-negotiable properties:
 - **`t` is derived from wall clock, never from an accumulator.** This is what makes the ramp resumable after a restart and immune to scheduler jitter and clock steps.
 - `transition_ms` is set slightly *longer* than the step interval so consecutive bulb-side fades overlap instead of leaving a stutter gap.
