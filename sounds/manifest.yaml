@@ -1,0 +1,43 @@
+# Sound library manifest. See docs/15-sound-library.md "Manifest".
+#
+# Drives `sounds/CREDITS.md` generation (`make credits`, `tools/generate_credits.py`)
+# and, later, the web UI's sound picker (task 08). Every entry needs a
+# `source` and a `license`; CI (tests/test_sounds.py) fails the build if a
+# non-generated entry is missing a real source URL or a CC0/public-domain
+# license — see spec 15's acceptance criteria.
+#
+# Only the four ffmpeg-generated noise tracks ship in this task
+# (tasks/06-audio.md's `make sounds` target). `rain.flac` and `chime.flac`
+# from spec 15's "What ships" table need a CC0 source actually picked off
+# Freesound/Wikimedia Commons/Internet Archive by a human (spec 15 sections
+# 2-4) -- that's a sourcing decision, not something to fabricate a URL for,
+# so they're left out of this manifest rather than added with a placeholder
+# license. See PROGRESS.md's task 06 notes.
+
+- id: white
+  title: "White noise"
+  file: white.flac
+  category: noise
+  source: "generated (ffmpeg anoisesrc)"
+  license: none
+
+- id: pink
+  title: "Pink noise"
+  file: pink.flac
+  category: noise
+  source: "generated (ffmpeg anoisesrc)"
+  license: none
+
+- id: brown
+  title: "Brown noise"
+  file: brown.flac
+  category: noise
+  source: "generated (ffmpeg anoisesrc)"
+  license: none
+
+- id: fan
+  title: "Fan / HVAC"
+  file: fan.flac
+  category: noise
+  source: "generated (ffmpeg anoisesrc, brown noise + resonant EQ)"
+  license: none

@@ -20,7 +20,7 @@ If a task goes badly: `git reset --hard HEAD`, then re-run with a note about wha
 
 ## Status
 
-**Task 04 done.** Next up: **task 05 — routine engine**.
+**Task 06 done.** Next up: **task 07 — REST + WebSocket API**.
 
 Before task 04: open `tools/sunrise-visualizer.html` and tune the CCT keyframes in `curves/sunrise-classic.yaml` (per task 03's "Then, before task 04" note) — still not done; carry forward.
 
@@ -30,9 +30,9 @@ Before task 04: open `tools/sunrise-visualizer.html` and tune the CCT keyframes 
 | 02 | Light interface, curves, MockLight | none | done |
 | 03 | Sunrise engine + tests | none | done |
 | 04 | Scheduler (alarms, DST) | none | done |
-| 05 | Routine engine | none | ⬅ next |
-| 06 | Audio playback | laptop speakers | not started |
-| 07 | REST + WebSocket API | none | not started |
+| 05 | Routine engine | none | done |
+| 06 | Audio playback | laptop speakers | done |
+| 07 | REST + WebSocket API | none | ⬅ next |
 | 08 | Web UI | none | not started |
 | 09 | LIFX driver | the bulb | not started |
 | 10 | Packaging + deploy | the Pi | not started |
@@ -55,6 +55,13 @@ Append anything a future session needs that isn't obvious from the code or specs
 - **Task 04:** Preflight (T-5min before `alarm_fire`) is intentionally not implemented — tasks/04-scheduler.md calls it a stub for task 10. `EventType.PREFLIGHT_FAILED` already existed in `core/events.py` from a prior task and is simply unused here.
 - **Task 04:** `Scheduler.start()` spawns a background tick loop (`_loop`), matching spec 05's "tick every 15s" rule 1 for real daemon use. Under a `FakeClock`, `Clock.sleep()` returns instantly regardless of the requested duration (by design — tests advance time explicitly), so a running `_loop` spins as fast as the event loop allows. Every scheduler test therefore calls `await scheduler.stop()` immediately after `await scheduler.start()` (before any manual `clock.advance()` + `await scheduler.tick()` driving) to avoid racing the background loop — leaving it running alongside manual ticks caused an actual hang during development. `Scheduler.tick()` is a public method (not in spec 05's listed interface) added specifically so tests can drive one tick at a time without fighting the event loop; `start()` still calls it internally for the startup catch-up pass.
 - **Task 04:** No local dev venv existed for this repo yet (CI installs `-e ".[dev]"` fresh each run, but nothing was committed for local use — `.venv/` is gitignored by design). Created one with `python3.11 -m venv .venv && .venv/bin/pip install -e ".[dev]"` to actually run the tests rather than trusting them unread; future sessions can reuse it.
+- **Task 06:** `max_gain_db` enforcement lives entirely in the `AudioOutput` driver layer (`base.py`'s new `max_gain_db` Protocol attribute + `clamp_gain_db()` helper, applied in every `play`/`set_gain`/`ramp_gain` in `MockAudioOutput` and `MpvOutput`), not in `core/routines.py`. Spec 04 says the ceiling is something "the routine engine cannot exceed" — reading that as "cannot exceed in effect," not "the routine engine must know about it," keeps the enforcement below the engine (task 05, not touched this task) rather than adding a config field the engine has to check. Default `max_gain_db=0.0` (unity gain); every shipped routine's ramps are well below that, so this is invisible in normal operation and only bites a misconfigured routine.
+- **Task 06:** Added `AudioOutput.engage_fallback()` as a stub method (Protocol + both implementations) per tasks/06-audio.md's "escalation ... with the fallback hook stubbed until task 10." Nothing calls it — no `panic_after` timer exists anywhere yet — it's purely a hook task 10 can wire up. `MockAudioOutput` records the call for testability; `MpvOutput` logs a warning and returns.
+- **Task 06:** `MpvOutput.test_tone()` plays mpv's own `av://lavfi:sine=...` synthetic input rather than a file on disk. Read docs/00-overview.md / spec 15's "no runtime synthesis" rule as scoping *sound-library content a user hears* (white noise, soundscapes) — spec 04 itself specifies the health-check tone only as "-60dB, inaudible," with no file, so treating it as an internal diagnostic signal exempt from that rule seemed like the intended reading rather than a workaround. Flagging in case a future spec pass wants to make that exemption explicit in spec 04 or 15.
+- **Task 06:** `make sounds` uses spec 15's ffmpeg one-liners verbatim (mono `anoisesrc` + `-ac 2`, i.e. the same signal duplicated to both channels) rather than spec 15's own later suggestion, under "Sample rate," to generate the two channels separately for true stereo decorrelation. Tasks/06-audio.md explicitly says to use "the ffmpeg anoisesrc one-liners in spec 15," which are the non-decorrelated version — followed literally. Worth a follow-up if the decorrelation actually matters perceptually; spec 15 flags it as "subtly fatiguing" otherwise.
+- **Task 06:** `sounds/manifest.yaml` only lists `white`/`pink`/`brown`/`fan` (the four `make sounds`-generated tracks). Spec 15's "What ships" table also lists `rain.flac` and `chime.flac` sourced from Freesound CC0, but picking an actual CC0 recording is a sourcing judgment call for a human (spec 15 sections 2-4 all warn about bad-provenance and license traps), not something to fabricate a URL for — and tasks/06-audio.md's own "Build" list only calls for the four generated tracks anyway. `routines/weekday-wake.yaml` and `winddown.yaml` already reference `chimes/windchime.flac` and `rain.flac` that don't exist in `sounds/` yet; whoever sources them should add manifest entries and `tests/test_sounds.py`'s validation will catch a missing license/URL.
+- **Task 06:** `mpv` wasn't installed on this dev machine; installed via `brew install mpv` (a system binary per CLAUDE.md, not a Python dependency) to actually exercise `MpvOutput` against a real process rather than trusting untested code — confirmed play/stop/ramp, `max_gain_db` clamping, and mpv-process-killed-respawns-within-5s all against real mpv on this laptop's speakers (silently, i.e. no error output; didn't visually/aurally confirm the 20-second alarm ramp "feels gradual" — that's a human judgment call left for a real listen). `tests/test_audio_mpv.py`'s mpv-dependent tests are `skipif`-guarded on `shutil.which("mpv")` so CI (which doesn't install mpv) skips them rather than failing; the pure-math and error-path tests always run.
+- **Task 06:** AF_UNIX socket paths have a short OS length limit (~104 bytes on macOS). pytest's `tmp_path` fixture nests deep enough that `tmp_path / "mpv-test.sock"` overflowed it during test development; `tests/test_audio_mpv.py` builds its socket paths under the system temp dir directly instead (`_socket_path()`), not under `tmp_path`.
 
 ## When to buy hardware
 

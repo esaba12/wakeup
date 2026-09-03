@@ -7,7 +7,7 @@ from datetime import datetime
 
 from openrestore.core.clock import Clock
 from openrestore.core.errors import DeviceUnreachable
-from openrestore.drivers.audio.base import AudioSource
+from openrestore.drivers.audio.base import AudioSource, clamp_gain_db
 
 
 @dataclass(frozen=True, slots=True)
@@ -31,32 +31,38 @@ class MockAudioOutput:
         id: str = "mock-audio-1",
         *,
         available: bool = True,
+        max_gain_db: float = 0.0,
     ) -> None:
         self.id = id
+        self.max_gain_db = max_gain_db
         self._clock = clock
         self._available = available
         self._playing: AudioSource | None = None
         self._gain_db: float = -60.0
         self.history: list[Call] = []
+        self.fallback_engaged_count: int = 0
 
     async def play(self, source: AudioSource, gain_db: float) -> None:
         if not self._available:
             raise DeviceUnreachable(f"{self.id} is unavailable")
+        applied = clamp_gain_db(gain_db, self.max_gain_db)
         self._playing = source
-        self._gain_db = gain_db
-        self.history.append(Call(self._clock.now(), "play", (source, gain_db)))
+        self._gain_db = applied
+        self.history.append(Call(self._clock.now(), "play", (source, applied)))
 
     async def stop(self, fade_out_s: float = 0.0) -> None:
         self._playing = None
         self.history.append(Call(self._clock.now(), "stop", (fade_out_s,)))
 
     async def set_gain(self, gain_db: float) -> None:
-        self._gain_db = gain_db
-        self.history.append(Call(self._clock.now(), "set_gain", (gain_db,)))
+        applied = clamp_gain_db(gain_db, self.max_gain_db)
+        self._gain_db = applied
+        self.history.append(Call(self._clock.now(), "set_gain", (applied,)))
 
     async def ramp_gain(self, to_db: float, over_s: float) -> None:
-        self._gain_db = to_db
-        self.history.append(Call(self._clock.now(), "ramp_gain", (to_db, over_s)))
+        applied = clamp_gain_db(to_db, self.max_gain_db)
+        self._gain_db = applied
+        self.history.append(Call(self._clock.now(), "ramp_gain", (applied, over_s)))
 
     async def is_available(self) -> bool:
         return self._available
@@ -66,6 +72,13 @@ class MockAudioOutput:
 
     async def test_tone(self, seconds: float = 1.0) -> None:
         self.history.append(Call(self._clock.now(), "test_tone", (seconds,)))
+
+    async def engage_fallback(self) -> None:
+        """Stub: records that the fallback path would have engaged. Task 10
+        wires an actual buzzer driver and the `panic_after` trigger; nothing
+        calls this yet."""
+        self.fallback_engaged_count += 1
+        self.history.append(Call(self._clock.now(), "engage_fallback", ()))
 
     def set_available(self, available: bool) -> None:
         """Test hook: simulate the dongle dropping off or rejoining."""
