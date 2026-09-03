@@ -1,0 +1,17 @@
+version: 1
+name: "Wind-down"
+id: winddown
+trigger: { type: time, at: "22:30", days: [1,2,3,4,5] }
+steps:
+  - id: settle
+    duration: 10m
+    light: { brightness: 0.4, cct: 2400, transition: 2m }
+    audio: { source: "file:rain.flac", gain_db: -28, fade_in: 30s }
+  - id: dim
+    duration: 20m
+    # reverse: true — see the design note at the top of core/routines.py
+    light: { curve: reverse-sunrise, reverse: true, to: { brightness: 0.02, cct: 1800 } }
+  - id: sleep
+    duration: until_cancel
+    light: { "off": true }
+    audio: { continue: true, sleep_timer: 45m, fade_out: 5m }

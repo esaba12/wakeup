@@ -38,6 +38,7 @@ Exactly one routine is active at a time. A new routine cancels the current one c
 Routines are **data**, shareable as files. This is the community surface of the project.
 
 ```yaml
+version: 1
 name: "Weekday wake"
 id: weekday-wake
 trigger: { type: alarm, ref: alarm_morning }
@@ -48,7 +49,7 @@ steps:
     light:
       curve: sunrise-classic
       to: { brightness: 0.9, cct: 4500 }
-    on_cancel: { light: { off: true } }
+    on_cancel: { light: { "off": true } }   # quoted: bare `off` parses as YAML boolean False
 
   - id: chime
     at_offset: -3m                # relative to trigger
@@ -67,6 +68,7 @@ snooze:
 ```
 
 ```yaml
+version: 1
 name: "Wind-down"
 id: winddown
 trigger: { type: time, at: "22:30", days: [1,2,3,4,5] }
@@ -77,10 +79,10 @@ steps:
     audio: { source: "file:rain.flac", gain_db: -28, fade_in: 30s }
   - id: dim
     duration: 20m
-    light: { curve: reverse-sunrise, to: { brightness: 0.02, cct: 1800 } }
+    light: { curve: reverse-sunrise, reverse: true, to: { brightness: 0.02, cct: 1800 } }
   - id: sleep
     duration: until_cancel
-    light: { off: true }
+    light: { "off": true }
     audio: { continue: true, sleep_timer: 45m, fade_out: 5m }
 ```
 
@@ -88,7 +90,9 @@ steps:
 - Durations: `30m`, `90s`, `until_cancel`, `until_next_step`.
 - Steps are either `duration`-based (sequential) or `at_offset`-based (anchored to the trigger, may overlap earlier steps — the chime overlaps the tail of the sunrise, which is the point).
 - `light` and `audio` blocks are independent; a step may set one, both, or neither.
+- A curve-based `light` block takes an optional `reverse: bool` (default `false`). docs/03-sunrise-engine.md's engine runs a curve with `t -> 1-t` for a wind-down; the routine schema needs to say which direction a given step wants, since the same curve file could in principle be run either way — `reverse` is that switch. `winddown`'s `dim` step sets it.
 - Unknown keys are a hard validation error, not ignored — a typo in someone's shared routine should fail loudly at load, not silently at 6am.
+- YAML gotcha: `off` (and `on`/`yes`/`no`) are bare-word booleans in default YAML 1.1 parsing, so a `light` block's `off` key must be quoted (`"off": true`) or it parses as the boolean key `False`, not the string `"off"`. Both examples above quote it.
 - Schema is versioned (`version: 1`) with a migration path.
 
 ## Executor
