@@ -13,6 +13,7 @@ from typing import Any
 class EventType(StrEnum):
     STATE_CHANGED = "state.changed"
     ROUTINE_TRANSITION = "routine.transition"
+    RAMP_START = "ramp.start"
     ALARM_FIRED = "alarm.fired"
     ALARM_MISSED = "alarm.missed"
     ALARM_SNOOZED = "alarm.snoozed"

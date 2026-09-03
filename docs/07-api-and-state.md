@@ -24,7 +24,7 @@ Single source of truth in the daemon. Clients never compute derived state; they 
 ## Event bus
 In-process async pub/sub. Producers: scheduler, routine engine, drivers. Consumers: WebSocket fan-out, MQTT bridge, SQLite event log, physical puck adapter.
 
-Event types: `state.changed` (delta), `routine.transition`, `alarm.fired`, `alarm.missed`, `alarm.snoozed`, `preflight.failed`, `device.unreachable`, `device.recovered`, `clock.unsafe`.
+Event types: `state.changed` (delta), `routine.transition`, `ramp.start`, `alarm.fired`, `alarm.missed`, `alarm.snoozed`, `preflight.failed`, `device.unreachable`, `device.recovered`, `clock.unsafe`.
 
 Every event is written to the `events` table with a timestamp. That table is how you debug a 6am failure at 9am.
 

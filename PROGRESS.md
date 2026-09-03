@@ -20,17 +20,17 @@ If a task goes badly: `git reset --hard HEAD`, then re-run with a note about wha
 
 ## Status
 
-**Task 03 done.** Next up: **task 04 — scheduler**.
+**Task 04 done.** Next up: **task 05 — routine engine**.
 
-Before task 04: open `tools/sunrise-visualizer.html` and tune the CCT keyframes in `curves/sunrise-classic.yaml` (per task 03's "Then, before task 04" note) — not yet done this session.
+Before task 04: open `tools/sunrise-visualizer.html` and tune the CCT keyframes in `curves/sunrise-classic.yaml` (per task 03's "Then, before task 04" note) — still not done; carry forward.
 
 | # | Task | Hardware needed | Status |
 |---|---|---|---|
 | 01 | Project scaffold, tooling, CI | none | done |
 | 02 | Light interface, curves, MockLight | none | done |
 | 03 | Sunrise engine + tests | none | done |
-| 04 | Scheduler (alarms, DST) | none | ⬅ next |
-| 05 | Routine engine | none | not started |
+| 04 | Scheduler (alarms, DST) | none | done |
+| 05 | Routine engine | none | ⬅ next |
 | 06 | Audio playback | laptop speakers | not started |
 | 07 | REST + WebSocket API | none | not started |
 | 08 | Web UI | none | not started |
@@ -48,6 +48,13 @@ Append anything a future session needs that isn't obvious from the code or specs
 - **Task 03:** `curve.color_at(t, b)` from spec 03's pseudocode ended up split: `Curve.rgb_at(t)` (holds the last-seen `rgb` keyframe forward, in `core/curves.py`) plus `core/sunrise.py`'s `color_at(curve, light, t, b)`, which decides RGB-vs-CCT by comparing the curve's interpolated CCT against `light.capabilities.cct_range[0]` — i.e. use RGB only when the light can't reach the target CCT, reverting to CCT mode once the ramp's target CCT rises back into range. No extra state needed; it falls out of comparing `cct_at(t)` to the light's floor each tick.
 - **Task 03:** `run_ramp`'s final apply (after the loop) reuses the loop's own `curve.brightness(t) * target_brightness` clamp formula at `t=1` (forward) or `t=0` (reverse), rather than spec 03's literal `curve.color_at(1.0, target_brightness)`. They're identical for forward ramps (every brightness model hits exactly 1.0 at t=1), but the literal reading breaks a reverse ramp — it would jump the wind-down back up to its *starting* brightness instead of ending near the floor/off. Flagging this as a spec-03 pseudocode gap: the reverse-ramp case needs its own final-apply line, not literal reuse of the forward one.
 - **Task 03:** Presets `nightlight_state`/`reading_state`/`off_state` live in `core/sunrise.py`. `nightlight` prefers pure red RGB over a light's lowest CCT whenever the light supports RGB — spec 03 lists both as options without a selection rule; red was chosen since it best preserves night vision, which is the preset's stated goal.
+- **Task 04:** `Alarm`'s field order in `core/scheduler.py` differs from spec 05's literal listing — `timezone` (no default) moves before `skip_next`/`last_fired_at` (defaulted). The spec's order isn't valid Python for a dataclass (non-default fields can't follow defaulted ones); this is a spec/language mismatch, not a design choice.
+- **Task 04:** `core/store.py` never imports `Alarm` from `core/scheduler.py` (would be circular, since `Scheduler` depends on `Store`). `Store` only knows `AlarmRow`/`OccurrenceRow` — plain string/int rows — and `core/scheduler.py` owns the `Alarm ⇄ AlarmRow` conversion. This keeps the "engines own timing, stores own persistence" split from CLAUDE.md intact.
+- **Task 04:** Added `EventType.RAMP_START = "ramp.start"` to `core/events.py` and to the event list in `docs/07-api-and-state.md`. Spec 05 requires it ("Emits: `ramp_start`, `alarm_fire`, ..."), but spec 07's event-type list omitted it — a spec/spec inconsistency, fixed by adding it to both places rather than silently diverging.
+- **Task 04:** One-shot alarms (`days == set()`) needed a decision spec 05 doesn't cover: naively re-deriving "today's" candidate date every tick means an unresolved one-shot would re-arm itself on the next calendar day forever, since nothing pins it to the day it was actually due. Fixed with `Scheduler._one_shot_resolved_ids`: once a one-shot alarm has *any* occurrence row (fired/missed/skipped), on any date, it's permanently done — derived at `start()` from `occurrences` and updated incrementally after. Known gap: an outage spanning a full day+ before a one-shot's due time will cause `next_scheduled_fire`-equivalent logic to wait for that same time on the *new* day rather than immediately catching it up or marking it missed, since there's no persisted "target date" on `Alarm`. Not exercised by the task's acceptance tests (which restart within hours, not days); flagging for whoever adds a `target_date` field if this matters later.
+- **Task 04:** Preflight (T-5min before `alarm_fire`) is intentionally not implemented — tasks/04-scheduler.md calls it a stub for task 10. `EventType.PREFLIGHT_FAILED` already existed in `core/events.py` from a prior task and is simply unused here.
+- **Task 04:** `Scheduler.start()` spawns a background tick loop (`_loop`), matching spec 05's "tick every 15s" rule 1 for real daemon use. Under a `FakeClock`, `Clock.sleep()` returns instantly regardless of the requested duration (by design — tests advance time explicitly), so a running `_loop` spins as fast as the event loop allows. Every scheduler test therefore calls `await scheduler.stop()` immediately after `await scheduler.start()` (before any manual `clock.advance()` + `await scheduler.tick()` driving) to avoid racing the background loop — leaving it running alongside manual ticks caused an actual hang during development. `Scheduler.tick()` is a public method (not in spec 05's listed interface) added specifically so tests can drive one tick at a time without fighting the event loop; `start()` still calls it internally for the startup catch-up pass.
+- **Task 04:** No local dev venv existed for this repo yet (CI installs `-e ".[dev]"` fresh each run, but nothing was committed for local use — `.venv/` is gitignored by design). Created one with `python3.11 -m venv .venv && .venv/bin/pip install -e ".[dev]"` to actually run the tests rather than trusting them unread; future sessions can reuse it.
 
 ## When to buy hardware
 
