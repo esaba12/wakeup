@@ -263,6 +263,13 @@ def _curves_dir() -> Path:
     return Path(__file__).resolve().parents[2] / "curves"
 
 
+def _web_dist_dir() -> Path:
+    """`web/dist` — the built React/TS/Vite static assets (task 08), at the
+    same repo-root-relative layout as `_curves_dir()`. Not configurable;
+    same rationale."""
+    return Path(__file__).resolve().parents[2] / "web" / "dist"
+
+
 def create_app(ctx: AppContext) -> FastAPI:
     """Build the FastAPI app around an already-constructed `AppContext`.
     Import the routers lazily (inside the function) rather than at module
@@ -294,6 +301,23 @@ def create_app(ctx: AppContext) -> FastAPI:
     app = FastAPI(title="OpenRestore", version="0.1.0", lifespan=lifespan)
     app.state.ctx = ctx
     app.state.ws_manager = manager
+    # Routers first: a `Mount` is only reached for paths no earlier route
+    # already matched, so `/api/*` always resolves here regardless of the
+    # static mount below (docs/08-web-ui.md: "built to static assets and
+    # served by the daemon").
     app.include_router(rest_router)
     app.include_router(ws_router)
+
+    web_dist = _web_dist_dir()
+    if web_dist.is_dir():
+        # Imported lazily and mounted conditionally: a host that never ran
+        # `npm run build` (every Python test, most dev loops) must still
+        # start the daemon and exercise the API — task 08's ground rules
+        # say not to make the web build a hard requirement of the Python
+        # side. `html=True` serves `index.html` at `/`, which is all this
+        # single-page, router-less app needs.
+        from fastapi.staticfiles import StaticFiles
+
+        app.mount("/", StaticFiles(directory=web_dist, html=True), name="web")
+
     return app

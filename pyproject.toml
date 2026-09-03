@@ -11,6 +11,18 @@ requires-python = ">=3.11"
 dependencies = [
     "fastapi",
     "uvicorn",
+    # uvicorn has no WebSocket support at all without one of its optional
+    # backends installed — with neither present, `/api/events` (task 07's
+    # WebSocket transport, and the web UI's only live-update channel, task
+    # 08) accepts the TCP connection but then 404s the upgrade, silently,
+    # since routing falls through to a plain-HTTP 404 once the upgrade
+    # itself never happens. Task 07's own test suite never caught this: it
+    # drives the app through Starlette's in-process `TestClient`, which
+    # never touches uvicorn's real socket/upgrade handling. `wsproto` is
+    # pure Python (no compiled extension), so it doesn't touch the
+    # no-C-extension-without-an-arm64-wheel constraint (docs/00-overview.md)
+    # the way `websockets`' optional speedups can.
+    "wsproto",
     "pydantic",
     "pyyaml",
     "structlog",

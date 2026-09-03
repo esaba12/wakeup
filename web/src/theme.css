@@ -1,0 +1,688 @@
+/*
+  Design direction (stated explicitly, per this environment's frontend
+  guidance, before writing any component): a bedside instrument, not a
+  dashboard. Near-black warm ground, one ember-amber accent, generous
+  negative space, a serif display face reserved for the numerals and
+  screen titles paired with a quiet humanist sans for chrome. Motion is
+  restricted to slow fades and one breathing pulse on the progress ring —
+  nothing chases the eye. Night mode (engaged during WINDDOWN/ASLEEP/
+  SUNRISE per docs/08-web-ui.md) drops to near-true-black with dim
+  red-amber text, no white anywhere, and disables the little motion that
+  exists elsewhere.
+
+  No web font is loaded from a CDN: this UI is served by a LAN-only,
+  no-cloud daemon (docs/00-overview.md) that must keep working with zero
+  internet access, so the display/body pairing below is built entirely
+  from system font stacks rather than a bundled or fetched font file.
+*/
+
+:root {
+  --font-display: ui-serif, Georgia, "Iowan Old Style", "Palatino Linotype", "Times New Roman",
+    serif;
+  --font-body: -apple-system, "Avenir Next", "Segoe UI", "Helvetica Neue", system-ui, sans-serif;
+
+  --bg: #14100b;
+  --bg-elevated: #1e1810;
+  --bg-sunken: #0d0a06;
+  --border: #2f2617;
+  --text: #f2e8d9;
+  --text-dim: #a99a84;
+  --text-faint: #6f6353;
+  --accent: #e8a85c;
+  --accent-strong: #f3bd7c;
+  --accent-dim: #8a5f2f;
+  --danger: #d1684f;
+  --ok: #8caf76;
+  --focus-ring: #f3bd7c;
+
+  --touch: 48px;
+  --radius: 14px;
+  --radius-sm: 8px;
+
+  color-scheme: dark;
+}
+
+/* Night mode: engaged by the app while routine.state is WINDDOWN, ASLEEP,
+   or SUNRISE. Near-true-black, one dim ember hue, no white, no motion. */
+.app--night {
+  --bg: #060402;
+  --bg-elevated: #0a0705;
+  --bg-sunken: #030201;
+  --border: #1c120a;
+  --text: #8a5138;
+  --text-dim: #6b3d29;
+  --text-faint: #472a1c;
+  --accent: #a2583a;
+  --accent-strong: #b3653f;
+  --accent-dim: #5c3520;
+  --danger: #a2583a;
+  --ok: #8a5138;
+  --focus-ring: #a2583a;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg-sunken);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-weight: 400;
+  -webkit-font-smoothing: antialiased;
+  overscroll-behavior: none;
+}
+
+.app--night,
+.app--night * {
+  transition: none !important;
+  animation: none !important;
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--font-display);
+  font-weight: 500;
+  margin: 0;
+  letter-spacing: 0.01em;
+}
+
+.app--night h1,
+.app--night h2,
+.app--night h3 {
+  font-weight: 400;
+}
+
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
+  color: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+a {
+  color: var(--accent);
+}
+
+.app {
+  max-width: 480px;
+  margin: 0 auto;
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+}
+
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 20px 8px;
+}
+
+.wordmark {
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  letter-spacing: 0.04em;
+  color: var(--text);
+  text-transform: lowercase;
+}
+
+.conn-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--ok);
+  transition: background 200ms ease;
+  flex-shrink: 0;
+}
+
+.conn-dot--off {
+  background: var(--danger);
+}
+
+.screen {
+  flex: 1;
+  padding: 8px 20px 100px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  overflow-y: auto;
+}
+
+.screen-title {
+  font-size: 1.6rem;
+  margin-bottom: 4px;
+}
+
+/* --- disconnected banner ------------------------------------------- */
+
+.banner {
+  margin: 0 20px;
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+  border: 1px solid var(--danger);
+  color: var(--text);
+  font-size: 0.88rem;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.banner::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--danger);
+  flex-shrink: 0;
+}
+
+/* --- nav ------------------------------------------------------------ */
+
+.nav {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  border-top: 1px solid var(--border);
+  background: var(--bg-elevated);
+  padding-bottom: env(safe-area-inset-bottom, 0);
+}
+
+.nav-item {
+  flex: 1;
+  min-height: var(--touch);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  background: none;
+  border: none;
+  padding: 10px 4px;
+  font-size: 0.72rem;
+  color: var(--text-faint);
+  letter-spacing: 0.02em;
+}
+
+.nav-item--active {
+  color: var(--accent);
+}
+
+/* --- buttons ---------------------------------------------------------- */
+
+.btn {
+  min-height: var(--touch);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  color: var(--text);
+  padding: 0 18px;
+  font-size: 1rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.btn:active {
+  transform: translateY(1px);
+}
+
+.btn--primary {
+  background: var(--accent);
+  color: var(--bg-sunken);
+  border-color: var(--accent);
+  font-weight: 600;
+}
+
+.btn--danger {
+  background: var(--danger);
+  color: var(--bg-sunken);
+  border-color: var(--danger);
+  font-weight: 600;
+}
+
+.btn--ghost {
+  background: none;
+}
+
+.btn--block {
+  width: 100%;
+}
+
+.btn--big {
+  min-height: 64px;
+  font-size: 1.15rem;
+  border-radius: 20px;
+}
+
+.btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.btn-row {
+  display: flex;
+  gap: 12px;
+}
+
+/* --- cards ------------------------------------------------------------ */
+
+.card {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+}
+
+.card + .card {
+  margin-top: 0;
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.muted {
+  color: var(--text-dim);
+  font-size: 0.88rem;
+}
+
+.faint {
+  color: var(--text-faint);
+  font-size: 0.8rem;
+}
+
+/* --- Now screen -------------------------------------------------------- */
+
+.now-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 0 4px;
+}
+
+.progress-ring {
+  position: relative;
+  width: 220px;
+  height: 220px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.progress-ring svg {
+  transform: rotate(-90deg);
+}
+
+.progress-ring-track {
+  stroke: var(--border);
+  fill: none;
+}
+
+.progress-ring-fill {
+  stroke: var(--accent);
+  fill: none;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 400ms ease;
+}
+
+/* A slow breathing pulse while a ramp is live — the one bit of ambient
+   motion this UI allows itself, and only outside night mode: the blanket
+   ".app--night, .app--night *" rule above already forces every animation
+   off there ("no animation" is explicit in docs/08-web-ui.md), so this is
+   deliberately unscoped to night mode rather than redundantly re-stating
+   that override. */
+.progress-ring-fill {
+  animation: breathe 6s ease-in-out infinite;
+}
+
+@keyframes breathe {
+  0%,
+  100% {
+    opacity: 0.75;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.progress-ring-label {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.progress-ring-state {
+  font-size: 0.78rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.progress-ring-step {
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+}
+
+.next-alarm-line {
+  text-align: center;
+  font-size: 1.05rem;
+  color: var(--text-dim);
+}
+
+.next-alarm-line strong {
+  color: var(--text);
+  font-family: var(--font-display);
+  font-weight: 500;
+}
+
+.shortcut-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 10px;
+}
+
+.shortcut-row .btn {
+  flex-direction: column;
+  padding: 12px 4px;
+  min-height: 64px;
+  font-size: 0.82rem;
+  gap: 4px;
+}
+
+/* --- alarms ------------------------------------------------------------ */
+
+.alarm-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+}
+
+.alarm-time {
+  font-family: var(--font-display);
+  font-size: 1.6rem;
+  min-width: 92px;
+}
+
+.alarm-meta {
+  flex: 1;
+  min-width: 0;
+}
+
+.alarm-days {
+  font-size: 0.82rem;
+  color: var(--text-dim);
+}
+
+.alarm-disabled .alarm-time,
+.alarm-disabled .alarm-days {
+  color: var(--text-faint);
+}
+
+.toggle {
+  width: 46px;
+  height: 28px;
+  border-radius: 16px;
+  background: var(--border);
+  position: relative;
+  border: none;
+  flex-shrink: 0;
+  padding: 0;
+}
+
+.toggle::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--text-faint);
+  transition: transform 150ms ease, background 150ms ease;
+}
+
+.toggle--on {
+  background: var(--accent-dim);
+}
+
+.toggle--on::after {
+  transform: translateX(18px);
+  background: var(--accent-strong);
+}
+
+.day-chips {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.day-chip {
+  min-width: 40px;
+  min-height: 40px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--bg-sunken);
+  color: var(--text-dim);
+  font-size: 0.78rem;
+}
+
+.day-chip--on {
+  background: var(--accent-dim);
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.skip-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-sunken);
+  border: 1px dashed var(--border);
+}
+
+/* --- form fields -------------------------------------------------------- */
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.field label {
+  font-size: 0.82rem;
+  color: var(--text-dim);
+}
+
+.field input[type="text"],
+.field input[type="time"],
+.field input[type="number"],
+.field select,
+.field textarea {
+  min-height: var(--touch);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--bg-sunken);
+  color: var(--text);
+  padding: 0 14px;
+  font-size: 1rem;
+}
+
+.field textarea {
+  padding: 12px 14px;
+  min-height: 220px;
+  font-family: "SF Mono", ui-monospace, Menlo, Consolas, monospace;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.field input:focus,
+.field select:focus,
+.field textarea:focus,
+button:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+/* --- routine timeline ---------------------------------------------------- */
+
+.timeline {
+  display: flex;
+  height: 44px;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+
+.timeline-step {
+  position: relative;
+  border-right: 1px solid var(--bg-sunken);
+  min-width: 3px;
+}
+
+.timeline-step:last-child {
+  border-right: none;
+}
+
+.timeline-legend {
+  display: flex;
+  gap: 16px;
+  font-size: 0.76rem;
+  color: var(--text-dim);
+}
+
+.legend-swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  margin-right: 5px;
+  vertical-align: -1px;
+}
+
+/* --- toast -------------------------------------------------------------- */
+
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 90px;
+  transform: translateX(-50%);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  z-index: 20;
+}
+
+/* --- health / history --------------------------------------------------- */
+
+.health-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.health-item {
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-sunken);
+  border: 1px solid var(--border);
+  font-size: 0.85rem;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.dot--ok {
+  background: var(--ok);
+}
+
+.dot--bad {
+  background: var(--danger);
+}
+
+.history-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.85rem;
+}
+
+.history-row:last-child {
+  border-bottom: none;
+}
+
+.errors-list {
+  color: var(--danger);
+  font-size: 0.8rem;
+  margin: 0;
+  padding-left: 18px;
+}
+
+.empty-state {
+  text-align: center;
+  color: var(--text-faint);
+  padding: 40px 20px;
+  font-size: 0.9rem;
+}
+
+/* --- small viewport (320px acceptance criterion) ------------------------ */
+
+@media (max-width: 340px) {
+  .screen {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+  .progress-ring {
+    width: 180px;
+    height: 180px;
+  }
+  .alarm-time {
+    font-size: 1.3rem;
+    min-width: 76px;
+  }
+}
